@@ -31,10 +31,8 @@ export class AzureDevops extends TypeParseProvder {
         } else {
             this.embed.title = this.body.message.text
         }
-        
 
         this.embed.description = this.body.detailedMessage.markdown
-        this.embed.url = this.body.resource.repository.url
 
         this.embed.author = this.extractAuthor()
 
