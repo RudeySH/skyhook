@@ -32,6 +32,7 @@ import { Unity } from './provider/Unity'
 import { UptimeRobot } from './provider/UptimeRobot'
 import { VSTS } from './provider/VSTS'
 import { Type } from './util/TSUtility'
+import { AzureDevops } from './provider/AzureDevops'
 
 dotenv.config()
 
@@ -51,6 +52,7 @@ if (sentryEnabled) {
 
 const providers: Type<BaseProvider>[] = [
     AppVeyor,
+    AzureDevops,
     Basecamp,
     BitBucket,
     BitBucketServer,
@@ -189,6 +191,12 @@ app.post('/api/webhooks/:webhookID/:webhookSecret/:from/test', async (req, res) 
         sendPayload(providerPath, discordPayload, discordEndpoint, res)
     }
 })
+
+
+// The error handler must be before any other error middleware and after all controllers
+if (sentryEnabled) {
+    app.use(Sentry.Handlers.errorHandler())
+}
 
 
 // The error handler must be before any other error middleware and after all controllers
