@@ -24,8 +24,15 @@ export class AzureDevops extends TypeParseProvder {
     }
 
     public async gitPush(): Promise<void> {
-        this.logger.debug('Parsing git push event')
-        this.embed.title = this.body.message.markdown
+        const match = /(.*)\s*\(https:\/\/dev.azure.com\/.*\)$/.exec(this.body.message.text)
+
+        if (match) {
+            this.embed.title = match[1]
+        } else {
+            this.embed.title = this.body.message.text
+        }
+        
+
         this.embed.description = this.body.detailedMessage.markdown
         this.embed.url = this.body.resource.repository.url
 
