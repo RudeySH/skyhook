@@ -3,6 +3,9 @@ import { DirectParseProvider } from '../provider/BaseProvider'
 
 import TurndownService from 'turndown'
 
+/**
+ * https://github.com/basecamp/bc3-api/blob/master/sections/webhooks.md
+ */
 export class Basecamp extends DirectParseProvider {
 
     private turndown: TurndownService
@@ -26,13 +29,6 @@ export class Basecamp extends DirectParseProvider {
     }
 
     public async parseData(): Promise<void> {
-        // console.log(this.body)
-        // fs.appendFile('bc.json', JSON.stringify(this.body) + '\n\n', function (err) {
-        //     if (err) {
-        //         return console.log(err)
-        //     }
-        // })
-        //let embed: Embed
         switch (this.body.kind) {
             case 'comment_trashed':
                 this.prepareEmbed(this.colorDeleted, 'deleted comment', ['title'], true)
@@ -204,10 +200,10 @@ export class Basecamp extends DirectParseProvider {
         fields.forEach((field) => {
             switch (field) {
                 case 'title':
-                    embed.fields!.push({name: 'Title', value: body.recording.title, inline: true})
+                    embed.fields!.push({ name: 'Title', value: body.recording.title, inline: true })
                     break
                 case 'type':
-                    embed.fields!.push({name: 'Type', value: body.recording.type, inline: true})
+                    embed.fields!.push({ name: 'Type', value: body.recording.type, inline: true })
             }
         })
         this.addEmbed(embed)

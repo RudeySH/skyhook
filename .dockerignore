@@ -1,7 +1,18 @@
+# .gcloudignore and .dockerignore should match
+
 .dockerignore
 .git/
 .gitignore
+.vscode/
 Dockerfile
 README.md
+CONTRIBUTING.md
 docs/
 images/
+app.yaml
+License
+nodemon.json
+.eslintignore
+.eslintrc.json
+.gcloudignore
+.nvmrc

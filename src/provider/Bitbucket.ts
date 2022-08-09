@@ -39,6 +39,9 @@ export class BitBucket extends TypeParseProvder {
     }
 
     public getType(): string | null {
+        if (this.headers == null) {
+            return null
+        }
         return this.headers['x-event-key']
     }
 
@@ -61,7 +64,9 @@ export class BitBucket extends TypeParseProvder {
             'pullrequestRejected',
             'pullrequestCommentCreated',
             'pullrequestCommentUpdated',
-            'pullrequestCommentDeleted'
+            'pullrequestCommentDeleted',
+            'pullrequestChangesRequestCreated',
+            'pullrequestChangesRequestRemoved'
         ]
     }
 
@@ -82,7 +87,7 @@ export class BitBucket extends TypeParseProvder {
                     // Tag Created
                     embed.title = '[' + this.body.repository.full_name + '] New tag created: ' + change.new.name
                     embed.url = change.new.links.html.href
-                }  else if (change.new == null && change.old.type === 'tag') {
+                } else if (change.new == null && change.old.type === 'tag') {
                     // Tag Deleted
                     embed.title = '[' + this.body.repository.full_name + '] Tag deleted: ' + change.old.name
                 } else {
@@ -91,17 +96,21 @@ export class BitBucket extends TypeParseProvder {
                     const commits = change.commits
 
                     const fields: EmbedField[] = []
-                    embed.title = '[' + this.body.repository.name + ':' + branch + '] ' + commits.length + ' commit' + (commits.length > 1 ? 's' : '')
-                    embed.url = change.links.html.href
-                    for (let j = commits.length - 1; j >= 0; j--) {
-                        const commit = commits[j]
-                        const message = (commit.message.length > 256) ? commit.message.substring(0, 255) + '\u2026' : commit.message
-                        const author = (typeof commit.author.user !== 'undefined') ? commit.author.user.display_name : 'Unknown'
-                        fields.push({
-                            name: 'Commit from ' + author,
-                            value: '(' + '[`' + commit.hash.substring(0, 7) + '`](' + commit.links.html.href + ')' + ') ' + message.replace(/\n/g, ' ').replace(/\r/g, ' ')
-                        })
+                    let title = `[${this.body.repository.name}]:${branch} `
+                    if (commits != null) {
+                        title += commits.length + ' commit' + (commits.length > 1 ? 's' : '')
+                        for (let j = commits.length - 1; j >= 0; j--) {
+                            const commit = commits[j]
+                            const message = (commit.message.length > 256) ? commit.message.substring(0, 255) + '\u2026' : commit.message
+                            const author = (typeof commit.author.user !== 'undefined') ? commit.author.user.display_name : 'Unknown'
+                            fields.push({
+                                name: 'Commit from ' + author,
+                                value: '(' + '[`' + commit.hash.substring(0, 7) + '`](' + commit.links.html.href + ')' + ') ' + message.replace(/\n/g, ' ').replace(/\r/g, ' ')
+                            })
+                        }
                     }
+                    embed.title = title
+                    embed.url = change.links.html.href
                     embed.fields = fields
                 }
 
@@ -216,7 +225,7 @@ export class BitBucket extends TypeParseProvder {
                     return
                 }
 
-                const actorNames: {[state: string]: string} = {}
+                const actorNames: { [state: string]: string } = {}
                 const unassigned = '`Unassigned`'
 
                 states.forEach((state) => {
@@ -287,6 +296,7 @@ export class BitBucket extends TypeParseProvder {
         this.embed.author = this.extractAuthor()
         this.embed.title = `[${this.body.repository.full_name}] Approved pull request: #${this.body.pullrequest.id} ${this.body.pullrequest.title}`
         this.embed.url = this.extractPullRequestUrl()
+        this.setEmbedColor(0x2db83d)
         this.addEmbed(this.embed)
     }
 
@@ -332,6 +342,21 @@ export class BitBucket extends TypeParseProvder {
         this.embed.author = this.extractAuthor()
         this.embed.title = `[${this.body.repository.full_name}] Deleted comment on pull request: #${this.body.pullrequest.id} ${this.body.pullrequest.title}`
         this.embed.description = (this.body.comment.content.html.replace(/<.*?>/g, '').length > 1024) ? this.body.comment.content.html.replace(/<.*?>/g, '').substring(0, 1023) + '\u2026' : this.body.comment.content.html.replace(/<.*?>/g, '')
+        this.embed.url = this.extractPullRequestUrl()
+        this.addEmbed(this.embed)
+    }
+
+    public async pullrequestChangesRequestCreated(): Promise<void> {
+        this.embed.author = this.extractAuthor()
+        this.embed.title = `[${this.body.repository.full_name}] Changes requested for pull request: #${this.body.pullrequest.id} ${this.body.pullrequest.title}`
+        this.embed.url = this.extractPullRequestUrl()
+        this.setEmbedColor(0xffa500)
+        this.addEmbed(this.embed)
+    }
+
+    public async pullrequestChangesRequestRemoved(): Promise<void> {
+        this.embed.author = this.extractAuthor()
+        this.embed.title = `[${this.body.repository.full_name}] Removed changes requested for pull request: #${this.body.pullrequest.id} ${this.body.pullrequest.title}`
         this.embed.url = this.extractPullRequestUrl()
         this.addEmbed(this.embed)
     }

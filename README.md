@@ -5,16 +5,14 @@ Parses webhooks and forwards them in the proper format to Discord.
 [![Discord](https://discordapp.com/api/guilds/303595820345851905/widget.png)](https://discord.gg/js7wD7p)
 
 ## Setup
-
-You can use the [site](https://skyhookapi.com/) to create the right webhook link. If you want to manually do it, here are the steps:
-
+You can use the [site](https://commit451.github.io/skyhook-web) to create the right webhook link. If you want to manually do it, here are the steps:
 1. Create a webhook in Discord (Server Settings -> Webhooks -> Create Webhook)
 2. Copy the webhook url
 3. Turn the Discord webhook url into a skyhook webhook url like so:
 
 ```
-Replace discordapp.com in url with skyhookapi.com
-https://discordapp.com/api/webhooks/firstPartOfWebhook/secondPartOfWebhook
+Replace discord.com in url with skyhookapi.com
+https://discord.com/api/webhooks/firstPartOfWebhook/secondPartOfWebhook
 ->
 https://skyhookapi.com/api/webhooks/firstPartOfWebhook/secondPartOfWebhook
 ```
@@ -34,6 +32,7 @@ https://skyhookapi.com/api/webhooks/firstPartOfWebhook/secondPartOfWebhook/provi
 - [BitBucket Server](https://confluence.atlassian.com/bitbucketserver/event-payload-938025882.html) - `/bitbucketserver`
 - [CircleCI](https://circleci.com/docs/1.0/configuration/#notify) - `/circleci`
 - [Codacy](https://support.codacy.com/hc/en-us/articles/207280359-WebHook-Notifications) - `/codacy`
+- [Confluence](https://developer.atlassian.com/cloud/confluence/modules/webhook/) - `/confluence`
 - [Dockerhub](https://docs.docker.com/docker-hub/webhooks) - `/dockerhub`
 - [GitLab](https://gitlab.com/help/user/project/integrations/webhooks) - `/gitlab`
 - [Heroku](https://devcenter.heroku.com/articles/deploy-hooks#http-post-hook) - `/heroku`
@@ -86,6 +85,9 @@ Through Docker:
 ```
 docker run -it --rm -p 8080:8080 commit451/skyhook
 ```
+
+## Web
+If you are looking for the frontend web version of skyhook which lets you generate a properly formatted URL, it lives [here](https://github.com/Commit451/skyhook-web).
 
 ## Deploying
 

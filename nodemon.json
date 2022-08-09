@@ -1,0 +1,12 @@
+{
+  "watch": [
+    "src",
+    "public"
+  ],
+  "ext": "js,ts,json,ejs,css",
+  "ignore": [
+    "node_modules",
+    "**/*spec.ts"
+  ],
+  "exec": "npx ts-node ./src/index.ts"
+}

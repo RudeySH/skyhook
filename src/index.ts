@@ -1,11 +1,13 @@
 import dotenv from 'dotenv'
 import axios from 'axios'
-import bodyParser from 'body-parser'
-import express from 'express'
+import express, { Response } from 'express'
+import cors from 'cors'
 import { DiscordPayload } from './model/DiscordApi'
 import { BaseProvider } from './provider/BaseProvider'
 import { ErrorUtil } from './util/ErrorUtil'
 import { LoggerUtil } from './util/LoggerUtil'
+import * as Sentry from '@sentry/node'
+import * as fs from 'fs'
 
 import { AppVeyor } from './provider/Appveyor'
 import { Basecamp } from './provider/Basecamp'
@@ -13,6 +15,7 @@ import { BitBucket } from './provider/Bitbucket'
 import { BitBucketServer } from './provider/BitBucketServer'
 import { CircleCi } from './provider/CircleCi'
 import { Codacy } from './provider/Codacy'
+import { Confluence } from './provider/Confluence'
 import { DockerHub } from './provider/DockerHub'
 import { GitLab } from './provider/GitLab'
 import { Heroku } from './provider/Heroku'
@@ -36,13 +39,17 @@ dotenv.config()
 LoggerUtil.init()
 
 const logger = LoggerUtil.logger()
-logger.debug('Winston setup successfully.')
+logger.debug('Logger set up successfully.')
 
 const app = express()
 
-/**
- * Array of the classes
- */
+const sentryUrl = process.env.SENTRY_URL
+const sentryEnabled = sentryUrl != null
+if (sentryEnabled) {
+    logger.debug(`Initializing Sentry`)
+    Sentry.init({ dsn: sentryUrl })
+}
+
 const providers: Type<BaseProvider>[] = [
     AppVeyor,
     AzureDevops,
@@ -51,6 +58,7 @@ const providers: Type<BaseProvider>[] = [
     BitBucketServer,
     CircleCi,
     Codacy,
+    Confluence,
     DockerHub,
     GitLab,
     Heroku,
@@ -76,7 +84,7 @@ providers.forEach((Provider) => {
     const instance = new Provider()
     providerInstances.push(instance)
     providersMap.set(instance.getPath(), Provider)
-    logger.debug(`Adding provider name ${instance.getName()}`)
+    logger.debug(`Adding provider: ${instance.getName()}`)
     providerNames.push(instance.getName())
     const providerInfo = {
         name: instance.getName(),
@@ -86,17 +94,29 @@ providers.forEach((Provider) => {
 })
 providerNames.sort()
 
-app.use(bodyParser.json())
-app.use(bodyParser.urlencoded({ extended: false }))
+if (sentryEnabled) {
+    app.use(Sentry.Handlers.requestHandler())
+}
+app.use(cors())
+app.use(express.json())
+app.use(express.urlencoded({ extended: false }))
 app.use(express.static('public'))
-app.set('view engine', 'ejs')
 
-app.get('/', (req, res) => {
-    res.render('index', { providers: providerInfos })
+app.get('/', (_req, res) => {
+    res.redirect('https://commit451.github.io/skyhook-web');
 })
 
-app.get('/providers', (req, res) => {
-    res.status(200).send(providerNames)
+app.get('/api/providers', (_req, res) => {
+    res.status(200).send(providerInfos)
+})
+
+const info = {
+    version: process.env.GAE_VERSION,
+    deployment: process.env.GAE_DEPLOYMENT_ID,
+    sentryEnabled: sentryEnabled,
+}
+app.get('/api/info', (_req, res) => {
+    res.status(200).send(info)
 })
 
 app.get('/api/webhooks/:webhookID/:webhookSecret/:from', (req, res) => {
@@ -114,8 +134,8 @@ app.get('/api/webhooks/:webhookID/:webhookSecret/:from', (req, res) => {
 app.post('/api/webhooks/:webhookID/:webhookSecret/:from', async (req, res) => {
     const webhookID = req.params.webhookID
     const webhookSecret = req.params.webhookSecret
-    const providerName = req.params.from
-    if (!webhookID || !webhookSecret || !providerName) {
+    const providerPath = req.params.from
+    if (!webhookID || !webhookSecret || !providerPath) {
         res.sendStatus(400)
         return
     }
@@ -123,7 +143,7 @@ app.post('/api/webhooks/:webhookID/:webhookSecret/:from', async (req, res) => {
 
     let discordPayload: DiscordPayload | null = null
 
-    const Provider = providersMap.get(providerName)
+    const Provider = providersMap.get(providerPath)
     if (Provider != null) {
         const instance = new Provider()
         try {
@@ -137,46 +157,55 @@ app.post('/api/webhooks/:webhookID/:webhookSecret/:from', async (req, res) => {
         } catch (error) {
             res.sendStatus(500)
             logger.error('Error during parse: ' + error.stack)
-            discordPayload = ErrorUtil.createErrorPayload(providerName, error)
+            discordPayload = ErrorUtil.createErrorPayload(providerPath, error)
         }
     } else {
-        const errorMessage = `Unknown provider ${providerName}`
+        const errorMessage = `Unknown provider ${providerPath}`
         logger.error(errorMessage)
         res.status(400).send(errorMessage)
         return
     }
 
-    if (discordPayload != null) {
+    sendPayload(providerPath, discordPayload, discordEndpoint, res)
+})
 
-        // We could implement a more robust validation on this at some point.
-        if (Object.keys(discordPayload).length === 0) {
-            logger.error('Bad implementation, outbound payload is empty.')
-            res.status(500).send('Bad implementation.')
-            return
-        }
-
-        const jsonString = JSON.stringify(discordPayload)
-        axios({
-            data: jsonString,
-            method: 'post',
-            url: discordEndpoint,
-            headers: {
-                'Content-Type': 'application/json'
-            }
-        }).then(() => {
-            res.sendStatus(200)
-        }).catch((err) => {
-            logger.error(err)
-            res.status(502).send(err)
-        })
-    } else {
-        res.status(200).send(`Webhook event is either not supported or not implemented by /${providerName}.`)
+app.post('/api/webhooks/:webhookID/:webhookSecret/:from/test', async (req, res) => {
+    const webhookID = req.params.webhookID
+    const webhookSecret = req.params.webhookSecret
+    const providerPath = req.params.from
+    if (!webhookID || !webhookSecret || !providerPath) {
+        res.sendStatus(400)
         return
+    }
+    const discordEndpoint = `https://discordapp.com/api/webhooks/${webhookID}/${webhookSecret}`
+    const Provider = providersMap.get(providerPath)
+    if (providerPath == null || Provider == null) {
+        const errorMessage = `Unknown provider ${providerPath}`
+        logger.error(errorMessage)
+        res.status(400).send(errorMessage)
+    } else {
+        const provider = new Provider()
+        const jsonFileName = `${providerPath}.json`
+        const json = fs.readFileSync(`./test/${providerPath}/${jsonFileName}`, 'utf-8')
+        const discordPayload = await provider.parse(JSON.parse(json))
+        sendPayload(providerPath, discordPayload, discordEndpoint, res)
     }
 })
 
+
+// The error handler must be before any other error middleware and after all controllers
+if (sentryEnabled) {
+    app.use(Sentry.Handlers.errorHandler())
+}
+
+
+// The error handler must be before any other error middleware and after all controllers
+if (sentryEnabled) {
+    app.use(Sentry.Handlers.errorHandler())
+}
+
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-app.use((req, res, next) => {
+app.use((_req, res, _next) => {
     res.status(404).send('Not Found')
 })
 
@@ -200,6 +229,43 @@ function normalizePort(givenPort: string): string | number | boolean {
     }
 
     return false
+}
+
+/**
+ * Sends the correctly formatted payload to the Discord channel
+ */
+async function sendPayload(
+    providerPath: string,
+    discordPayload: DiscordPayload | null,
+    discordEndpoint: string,
+    res: Response,
+) {
+    if (discordPayload == null) {
+        logger.error('Discord payload is null')
+        res.status(200).send(`Webhook event is either not supported or not implemented by /${providerPath}.`)
+        return
+    }
+    // We could implement a more robust validation on this at some point.
+    if (Object.keys(discordPayload).length === 0) {
+        logger.error('Bad implementation, outbound payload is empty.')
+        res.status(500).send('Bad implementation.')
+        return
+    }
+    const jsonString = JSON.stringify(discordPayload)
+    try {
+        await axios({
+            data: jsonString,
+            method: 'post',
+            url: discordEndpoint,
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        })
+        res.sendStatus(200)
+    } catch (err) {
+        logger.error(err)
+        res.status(500).send(err)
+    }
 }
 
 module.exports = server
