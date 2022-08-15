@@ -86,10 +86,6 @@ export abstract class BaseProvider {
     protected addEmbed(embed: Embed): void {
         // TODO check to see if too many fields
         // add the footer to all embeds added
-        embed.footer = {
-            text: 'Powered by skyhookapi.com',
-            icon_url: 'https://skyhookapi.com/images/skyhook-tiny.png'
-        }
         if (this.embedColor != null) {
             embed.color = this.embedColor
         }
