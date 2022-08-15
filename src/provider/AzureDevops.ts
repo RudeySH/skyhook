@@ -42,6 +42,7 @@ export class AzureDevops extends TypeParseProvder {
     public extractAuthor(): EmbedAuthor {
         return {
             name: this.body.resource.pushedBy.displayName,
+            icon_url: this.body.resource.pushedBy._links?.avatar?.href,
         }
     }
 }
